@@ -1,0 +1,224 @@
+---
+title: "330 - Final Project Proposal"
+author: "Dallan Gardner, Marcie Mortensen, and Joe Holmes"
+format: html
+editor: visual
+---
+
+```{r Setup, include = FALSE}
+library(tidyverse)
+library(ggfortify)
+library(patchwork)
+library(nortest)
+```
+
+# 1 - Group Members
+
+The members of our group are: Marcie Mortensen Dallan Gardner Joe Holmes
+
+# 2 - Dataset
+
+We intend to use the Student Performance Data set found online at Kaggle.com. This is a data set designed to examine different factors influencing student's academic performance. The specific variables are as follows: hours studied, previous scores, extracurricular activities, sleep hours, sample question papers practiced, and a performance index score. This data set consists of a total of 10,000 student records.
+
+```{r Import}
+#| code-fold: true
+
+student <- read.csv("Student_Performance.csv", sep = ",") |>
+  rename(
+    Study = Hours.Studied,
+    Sleep = Sleep.Hours,
+    Practice = Sample.Question.Papers.Practiced,
+    Performance = Performance.Index,
+    Previous = Previous.Scores,
+    Extra = Extracurricular.Activities
+    )
+head(student)
+```
+
+# 3 - Research Questions
+
+-   Does practicing sample question papers mediate the relationship between previous scores and performance index?
+
+-   How do hours of sleep predict the performance index score?
+
+# 4 - EDA
+
+```{r EDA, fig.align='center'}
+#| code-fold: true
+
+hrs.studied.scatter <- ggplot(student, aes(x = Study, 
+                                           y = Performance)) +
+  geom_point() +
+  labs(
+    title = "Student Performance 
+    by Hours Studied",
+    x = "Hours Studied",
+    y = "Performance Index"
+  ) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5), 
+        plot.margin = margin(1, .5, 1, 1, unit = "cm"))
+
+hrs.slept.scatter <- ggplot(student, 
+                            aes(x = Sleep, y = Performance)) +
+  geom_point() +
+  labs(
+    title = "Student Performance 
+    by Hours Slept",
+    x = "Hours Slept",
+    y = "Performance Index"
+  ) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5), plot.margin = margin(1, 1, 1, .5, unit = "cm"))
+
+hrs.studied.scatter + hrs.slept.scatter
+```
+
+# 5 - Preliminary Model Fit
+
+Naturally, one would be interested to see how the amount of time spent studying affects exam scores. This model explores the relationship between those. <!-- Idk put something more. -->
+
+```{r Model Fit}
+#| code-fold: true
+
+fit.student <- lm(Performance ~ Study, data = student)
+student$Residuals <- fit.student$residuals
+student$"Fitted Values" <- fit.student$fitted.values
+
+summary(fit.student)
+```
+
+# 6 - LINE Assumptions
+
+## Linearity
+
+```{r Linear, fig.align='center'}
+#| code-fold: true
+
+autoplot(fit.student, which = 1, ncol = 1, nrow = 1) +
+  labs(title = "Residuals by Fitted Values") +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5), 
+    plot.margin = margin(1, 1, 1, 1, unit = "cm")
+    )
+```
+
+With a residuals by fitted values plot, we can see a clear linear trend centered about 0. Based on this, our linearity assumption is met.
+
+## Independence
+
+How was the data collected and does this raise any concerns for violating the independence assumption?
+
+## Errors are Normally Distributed
+
+```{r Normality, fig.align='center'}
+#| code-fold: true
+
+student.box <- ggplot(student, aes(y = Residuals)) +
+  geom_boxplot(fill = 'darkblue', alpha = 0.6) +
+  labs(
+    title = "Residual Boxplot"
+  ) +
+  theme_bw() +
+  theme(
+    axis.ticks.x = element_blank(),
+    axis.text.x = element_blank(),
+    plot.title = element_text(hjust = 0.5)
+    )
+
+student.hist <- ggplot(student, aes(x = Residuals)) +
+  geom_histogram(
+    binwidth = 5, alpha = .6, 
+    color = 'black', fill = 'darkblue'
+    ) +
+  labs(
+    title = "Residual Histogram",
+    y = "Count"
+  ) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+student.box + student.hist
+```
+
+Our residuals histogram does not appear to follow a normal distribution, but there are no clear outliers either in the boxplot.
+
+```{r Normality QQ, fig.align='center'}
+#| code-fold: true
+
+ggplot(student, aes(sample = Residuals)) +
+  stat_qq() +
+  stat_qq_line() +
+  labs(
+    title = "Normal Q-Q Plot",
+    x = "Theoretical Quantiles",
+    y = "Standardized Residuals"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5), 
+    plot.margin = margin(1, 1, 1, 1, unit = "cm")
+    )
+```
+
+Looking at a QQ plot, however, we can see significant deviation from a normal in the tails.
+
+```{r Normality Shapiro}
+#| code-fold: true
+
+# Shapiro Wilks is limited to sample sizes of <= 5000
+# Use the Anderson Darling test instead?
+student.ad <- ad.test(student$Residuals)
+student.ad
+```
+
+Lastly, a test for normality using the Anderson-Darling normality test results in a p-value of `r format(student.ad$p.value, scientific = TRUE)`, meaning we reject the null hypothesis that the errors follow a normal distribution. With strong evidence against normality, this assumption is not met.
+
+## Equal Variance
+
+```{r Equal Variance, fig.align='center'}
+#| code-fold: true
+
+autoplot(fit.student, which = 3, nrow = 1, ncol = 1) +
+  labs(
+    title = "Scale-Location",
+  ) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+While not centered around zero, there is a clear horizontal trend indicating constant variance.
+
+# A - All data points captured by model
+
+```{r Cooks Distance, fig.align = 'center'}
+#| code-fold: true
+
+cd_cont_pos <- function(leverage, level, model){
+  sqrt(level*length(coef(model))*(1-leverage)/leverage)
+  }
+cd_cont_neg <- function(leverage, level, model) {
+  -cd_cont_pos(leverage, level, model)
+  }
+
+cd_threshold <- 0.5
+cd1 <- autoplot(fit.student, which = 5) +
+  stat_function(fun = cd_cont_pos,
+                args = list(level = cd_threshold, model = fit.student),
+                xlim = c(0, 0.25), lty = 2, colour = "red") +
+  stat_function(fun = cd_cont_neg,
+                args = list(level = cd_threshold, model = fit.student),
+                xlim = c(0, 0.25), lty = 2, colour = "red") +
+  scale_y_continuous(limits = c(-4, 4)) +
+  scale_x_continuous(limits = c(0, 0.5)) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+cd2 <- autoplot(fit.student, which = 4) +
+  scale_y_continuous(limits = c(0, 0.001)) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+cd1+cd2
+```
+
+Umm well... no influential points...
