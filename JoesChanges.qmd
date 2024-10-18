@@ -1,0 +1,280 @@
+---
+title: "Stat 330 - Project Proposal"
+authors: Marcie Mortensen, Dallan Gardner, and Joe Holmes
+format: 
+  pdf:
+    embed-resources: true 
+---
+
+
+<style type="text/css">
+h1.title {
+  font-size: 40px;
+  text-align: center;
+}
+</style>
+
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggfortify)
+library(car)
+library(patchwork)
+```
+
+
+# 1 Group Members
+
+The members of our group are Marcie Mortensen, Dallan Gardner, and Joe Holmes.
+
+# 2 Data Set
+
+What dataset do you intend to use for your final project? Where can it be found? **Provide a description of the data set and the variables it contains.** Load your data into R and print the first few rows of the data set.
+
+We intend to use the Student Performance data set found online at Kaggle.com [here](https://www.kaggle.com/datasets/nikhil7280/student-performance-multiple-linear-regression). This is a data set that was designed to examine different factors influencing academic student performance. The specific variables are as follows: hours studied, previous scores, extracurricular activities (yes/no), sleep hours, sample question papers practiced, and a performance index score. This data set consists of 10,000 student records.
+
+```{r, message=FALSE}
+# Idk how to make the url not render off the page...
+student_dat <- read_csv("https://raw.githubusercontent.com/Yoshimaster94/RegressionProject/refs/heads/main/Student_Performance.csv") |>
+  rename(
+    StudyHrs = 'Hours Studied',
+    SleepHrs = 'Sleep Hours',
+    SamplePractice = 'Sample Question Papers Practiced',
+    Performance = 'Performance Index',
+    PreviousScores = 'Previous Scores',
+    ExtraCurricular = 'Extracurricular Activities'
+    )
+head(student_dat)
+```
+
+
+# 3 Potential Questions of Interest
+
+Does practicing sample question papers affect the student's performance index?
+
+How do hours of sleep predict student performance index?
+
+How do hours studied predict student performance index?
+
+# 4 Exploratory Data Analysis
+
+Conduct EDA and provide **at least 3** figures or statistics highlighting features or between variable relationships within the data that are relevant to the questions of interest you provided earlier in the proposal.
+```{r, fig.align='center'}
+ggplot(data = student_dat) + 
+  geom_point(mapping = aes(x = StudyHrs, y = Performance)) +
+  labs(
+    title = "Performance by Hours Studied",
+    x = "Hours Studied",
+    y = "Performance Index"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5), 
+    plot.margin = margin(1, 1, 1, 1, unit = "cm")
+    )
+
+ggplot(data = student_dat) + 
+  geom_point(mapping = aes(x = PreviousScores, y = Performance)) +
+  labs(
+    title = "Performance by Previous Scores",
+    x = "Previous Score",
+    y = "Performance Index"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5), 
+    plot.margin = margin(1, 1, 1, 1, unit = "cm")
+    )
+
+ggplot(data = student_dat) + 
+  geom_point(mapping = aes(x = SleepHrs, y = Performance)) +
+  labs(
+    title = "Performance by Hours Slept",
+    x = "Hours Slept",
+    y = "Performance Index"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5), 
+    plot.margin = margin(1, 1, 1, 1, unit = "cm")
+    )
+```
+# 5 Preliminary Model Fit
+
+Select a variable from your data set that makes sense to describe as a dependent or response variable, and another to describe as an explanatory or predictor variable. Fit the standard simple linear regression model. The SLR model you fit doesn't have to directly relate to one of your research questions, but you should provide a brief justification of why someone may be interested in the relationship characterized by your initial model.
+
+```{r}
+Study_hours_lm <- lm(Performance ~ StudyHrs, data = student_dat)
+```
+
+Naturally, someone would be interested in how hours studied affects your test score. It would be helpful to any student to know if there was a linear relationship between hours studied and test performance or if there were some possible diminishing returns past a certain point of studying.
+
+<!-- Does he want us to interpret the estimates with the full model (all predictors) or just this preliminary one? -->
+
+
+# 6 Model Assumptions
+
+Assess whether the regression assumptions are satisfied and provide interpretation for the estimated model coefficients and associated uncertainty estimates. You are welcome to use as many or as few code blocks as you wish in this section, but make sure that your analysis is easy to follow.
+
+
+## Linear
+```{r, fig.align='center'}
+student_dat <- student_dat |>
+  mutate(
+    Residuals = Study_hours_lm$residuals, 
+    Fitted_Values = Study_hours_lm$fitted.values
+    )
+
+autoplot(Study_hours_lm, which = 1, ncol = 1, nrow = 1) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5), 
+    plot.margin = margin(1, 1, 1, 1, unit = "cm")
+    )
+```
+As seen from the residual plot the residuals have a horizontal linear trend centered around 0. 
+
+## Independence
+
+We don't have information on how the data were collected. To continue this study we are going to assume that the data were randomly sampled and all errors are independent of each other. 
+
+## Normalility
+```{r, fig.align='center'}
+#QQ plot
+
+ggplot(data = student_dat, aes(sample = Residuals)) +
+  stat_qq() +
+  stat_qq_line() +
+  labs(
+    title = "QQ Plot of Residuals", 
+    x = "Theoretical Quantiles", y = "Residuals"
+    ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5), 
+    plot.margin = margin(1, 1, 1, 1, unit = "cm")
+    )
+
+#Histogram
+
+ggplot(data = student_dat, aes(x = Residuals)) +
+  geom_histogram(bins = 30, fill = "blue", color = "white") +
+  labs(
+    title = "Histogram of Residuals", 
+    x = "Residuals", y = "Frequency"
+    ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5), 
+    plot.margin = margin(1, 1, 1, 1, unit = "cm")
+    )
+
+```
+The residuals are not normally distributed. This assumption has been violated. Thus, a transformation may be needed. 
+
+## Errors have constant varience
+```{r, fig.align='center'}
+autoplot(Study_hours_lm, which = 3, ncol = 1, nrow = 1) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5), 
+    plot.margin = margin(1, 1, 1, 1, unit = "cm")
+    )
+```
+A scale-location plot shows very nearly constant variance across all fitted values with extremely slight deviations.
+
+## The model describles all observations
+```{r, fig.align='center'}
+cd2 <- autoplot(Study_hours_lm, which = 4, ncol = 1, nrow = 1) +
+  scale_y_continuous(limits = c(0, 0.001)) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(hjust = 0.5), 
+    plot.margin = margin(1, 1, 1, 0.25, unit = "cm")
+    )
+
+cd_cont_pos <- function(leverage, level, model){
+  sqrt(level*length(coef(model))*(1-leverage)/leverage)
+  }
+cd_cont_neg <- function(leverage, level, model) {
+  -cd_cont_pos(leverage, level, model)
+  }
+
+cd_threshold <- 0.5
+cd1 <- autoplot(Study_hours_lm, which = 5) +
+  stat_function(fun = cd_cont_pos,
+                args = list(level = cd_threshold, model = Study_hours_lm),
+                xlim = c(0, 0.25), lty = 2, colour = "red") +
+  stat_function(fun = cd_cont_neg,
+                args = list(level = cd_threshold, model = Study_hours_lm),
+                xlim = c(0, 0.25), lty = 2, colour = "red") +
+  scale_y_continuous(limits = c(-4, 4)) +
+  scale_x_continuous(limits = c(0, 0.5)) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+cd1 + cd2
+```
+There are no influential points in the data set.
+
+## Transformations
+
+Since the assumption of normality was not met we will attempt to transform the data so this can be met.
+
+```{r, fig.align='center'}
+#Transformation on our independent variable (Performance index)
+
+invTranPlot(Performance ~ StudyHrs, data = student_dat, 
+            lambda = c(-1, 0, 1), optimal = TRUE)
+
+Tranx_lm <- lm(Performance ~ I(StudyHrs^.91), data = student_dat)
+
+#Transformation on our dependent variable
+
+box <- boxCox(Study_hours_lm)
+lambda.opt <- box$x[which.max(box$y)]
+
+#Transformation on both variables
+
+box <- boxCox(Tranx_lm)
+lambda.opt <-  box$x[which.max(box$y)]
+
+Tranxy_lm <- lm(I(Performance^.828282828) ~ I(StudyHrs^.91), 
+                data = student_dat)
+
+
+student_dat <- student_dat  |>
+  mutate(
+    Residuals= Tranxy_lm$residuals, 
+    Fitted_Values = Tranxy_lm$fitted.values)
+
+ggplot(data = student_dat, aes(sample = Residuals)) +
+  stat_qq() +
+  stat_qq_line() +
+  labs(
+    title = "QQ Plot of Residuals", 
+    x = "Theoretical Quantiles", y = "Residuals"
+    )
+
+
+```
+After applying transformations we were unable to adjust the residuals to follow a normal distribution. We will continue our analysis with the raw data despite this assumption not being met. 
+
+```{r}
+#adding in residuals and fitted values from a non-transformed model
+student_dat <- student_dat  |>
+  mutate(
+    Residuals= Study_hours_lm$residuals, 
+    Fitted_Values = Study_hours_lm$fitted.values
+    )
+```
+
+## Interpreting our Linear model summary output
+
+```{r}
+summary(Study_hours_lm)
+```
+For every 1 hour studied the student performance index increases on average by 2.77306 points
+
+When zero hours are studied the student performance index on average is 41.38 points
+
+Since our p-value is less than .05 we reject the null hypothesis and conclude that there is a linear relationship between hours studied and a students performance index score. 
