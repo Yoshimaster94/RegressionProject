@@ -175,7 +175,7 @@ ggplot(happiness, aes(x = Score)) +
   labs(
     title = "Residuals Histogram",
     y = "Count",
-    x = "Body Fat % (Brozek)"
+    x = "Happiness Score"
   ) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5))
