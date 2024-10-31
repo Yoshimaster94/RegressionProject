@@ -1,0 +1,40 @@
+---
+title: "Happiness"
+format: html
+editor: visual
+---
+
+## Load Libraries
+
+```{r}
+library(tidyverse)
+library(glmnet)
+library(bestglm)
+library(ggfortify)
+library(car)   
+library(corrplot)  
+library(GGally)
+```
+
+## Where we obtained the data
+
+[Happiness URL](https://www.kaggle.com/datasets/unsdsn/world-happiness?select=2019.csv)
+
+## Read in Data
+
+```{r}
+happy <- read.csv("Happiness.csv")
+```
+
+## Matrix scatterplot
+
+```{r}
+happy_num <- happy # Getting rid of categorical data so I can plot this
+happy_num$Country.or.region <- NULL
+happy_num$Overall.rank <- NULL
+plot(happy_num, upper.panel=NULL)
+```
+
+```{r}
+corrplot(cor(happy_num))
+```
