@@ -127,7 +127,7 @@ Generosity was not selected in any process, so we can confidently remove that. P
 happiness <- happiness |>
   select(-Generosity, -Perceptions.of.corruption)
 
-fit.happiness <- lm(Score ~ ., happiness.original)
+fit.happiness <- lm(Score ~ ., happiness)
 happiness$Residuals <- fit.happiness$residuals
 happiness$'Fitted Values' <- fit.happiness$fitted.values
 
@@ -135,7 +135,7 @@ summary(fit.happiness)
 ```
 
 ```{r, Linearity}
-# X and Y are Linear
+# Xs and Y are linear
 
 # Partial Regression Plots
 avPlots(fit.happiness)
@@ -169,6 +169,7 @@ Linearity looks good.
 # Check Independence Here
 
 ```{r, Normal Residuals}
+# Errors are normally distributed
 ggplot(happiness, aes(x = Score)) +
   geom_histogram(fill = 'blue', alpha = 0.5, color = 'black') +
   labs(
@@ -197,6 +198,7 @@ shapiro.test(happiness$Residuals)
 QQ plot is fine, but histogram doesn't look great. Shapiro says it's still 'ok' though. Maybe transform the data to get better normality.
 
 ```{r, Equal Variance}
+# Errors have equal variance
 autoplot(fit.happiness, which = 3, nrow = 1, ncol = 1) +
   labs(
     title = "Scale-Location",
@@ -208,6 +210,7 @@ autoplot(fit.happiness, which = 3, nrow = 1, ncol = 1) +
 Looks good.
 
 ```{r, Check for Influential Points}
+# Check for influential points
 autoplot(fit.happiness, which = 4, ncol = 1, nrow = 1) +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5))
@@ -216,17 +219,16 @@ autoplot(fit.happiness, which = 4, ncol = 1, nrow = 1) +
 Nothing above (or even close) to 0.5, so we're good.
 
 ```{r, Multicollinearity, message=FALSE}
+# Assess if multicollinearity is present
 vif(fit.happiness)
 mean(vif(fit.happiness))
 ```
 
 GDP looks strongly correlated with a couple in the original scatter matrix, but no VIFs are above 10 and the mean is below 5, so we're good I guess?
 
-```{r}
-summary(fit.happiness)
-```
 
-Interpret coefficients:
+# Interpret Coefficients of Chosen Model:
+
 GDP: We expect an average increase in citizen happiness score for a country of ~0.8105 for every 1 unit (currency of the respective country?) increase in GDP.
 
 Social Support: We expect an average increase in citizen happiness score for a country of ~1.0166 for every 1 point increase in social support score.
