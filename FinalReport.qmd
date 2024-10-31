@@ -1,0 +1,236 @@
+---
+title: "Final Report"
+author: "Dallan Gardner, Marcie Mortensen, and Joseph Holmes"
+format: html
+---
+
+
+```{r, Setup, include = FALSE}
+library(tidyverse)
+library(glmnet)
+library(bestglm)
+library(ggfortify)
+library(car)   
+library(corrplot)  
+library(GGally)
+library(patchwork)
+```
+
+```{r, Import, include = FALSE}
+# Read in data and move response (Score) to last column for later model selection
+happiness <- read.csv("Happiness.csv") |>
+  select(-Score, everything(), -Overall.rank, -Country.or.region, Score)
+```
+
+```{r, Scatter Matrix, fig.align='center', echo = FALSE, message = FALSE}
+# Multicollinearity check
+ggpairs(happiness)
+```
+
+```{r, Correlation Plots, echo = FALSE}
+corrplot(cor(happiness))
+```
+
+```{r, Model Selection, echo = FALSE, results = 'hide'}
+base.model <- lm(Score ~ 1, happiness)
+full.model <- lm(Score ~ ., happiness)
+
+# Best Subsets BIC, AIC, and Cross Validation
+bestglm(happiness, IC = "BIC")
+bestglm(happiness, IC = "AIC")
+bestglm(happiness, IC = "CV")
+
+# AIC Forward Selection
+step.f.aic <- step(base.model, 
+                   direction = "forward",
+                   k = 2,
+                   scope = list(lower = base.model, upper = full.model))
+
+# AIC Backward Selection
+step.b.aic <- step(full.model, 
+                   direction = "backward",
+                   k = 2,
+                   scope = list(lower = base.model, upper = full.model))
+
+# BIC Forward Selection
+step.f.bic <- step(base.model, 
+                   direction = "forward",
+                   k = log(nrow(happiness)),
+                   scope = list(lower = base.model, upper = full.model))
+
+# BIC Backward Selection
+step.b.bic <- step(full.model, 
+                   direction = "backward",
+                   k = log(nrow(happiness)),
+                   scope = list(lower = base.model, upper = full.model))
+
+# Sequential Replacement Selection (AIC)
+seq.repl.aic <- step(base.model, 
+                   direction = "both",
+                   k = 2,
+                   scope = list(lower = base.model, upper = full.model))
+
+# Sequential Replacement Selection (BIC)
+seq.repl.bic <- step(base.model, 
+                   direction = "both",
+                   k = log(nrow(happiness)),
+                   scope = list(lower = base.model, upper = full.model))
+
+# LASSO Regression
+happiness_x <- as.matrix(happiness[, 1:6]) # predictors
+happiness_y <- happiness[, 7] # response
+
+happiness_lasso_cv <- cv.glmnet(x = happiness_x,
+                          y = happiness_y, 
+                          type.measure = "mse", 
+                          alpha = 1)
+
+happiness_lasso_cv$lambda.1se
+coef(happiness_lasso_cv, s = "lambda.1se")
+
+# Ridge Regression
+happiness_ridge_cv <- cv.glmnet(x = happiness_x,
+                          y = happiness_y, 
+                          type.measure = "mse", 
+                          alpha = 0)
+
+happiness_ridge_cv$lambda.1se
+coef(happiness_ridge_cv, s = "lambda.1se")
+```
+
+```{r, Selection Summaries}
+summary(step.f.aic)
+summary(step.b.aic)
+summary(step.f.bic)
+summary(step.b.bic)
+summary(seq.repl.aic)
+summary(seq.repl.bic)
+```
+
+Other than best subset, we'll use BIC for the other selection methods.
+
+Variable                        | Best Subset (BIC) | Best Subset (AIC) | Best Subset (CV) | Forward | Backward | Sequential Replacement | LASSO     | 
+------------------------------- | ----------------- | ----------------- | ---------------- | --------| -------- | ---------------------- | --------- |
+GDP.per.capita                  | 0.8105494         | 0.7454527         | 0.8105494        | 0.8105  | 0.8105   | 0.8105                 | 0.7029658 |
+Social.support                  | 1.0166104         | 1.1180315         | 1.0166104        | 1.0166  | 1.0166   | 1.0166                 | 0.9307674 |
+Healthy.life.expectancy         | 1.1414486         | 1.0840162         | 1.1414486        | 1.1414  | 1.1414   | 1.1414                 | 0.9661429 |
+Freedom.to.make.life.choices    | 1.8458157         | 1.5340094         | 1.8458157        | 1.8458  | 1.8458   | 1.8458                 | 1.2050668 |
+Generosity                      | .                 | .                 | .                | .       | .        | .                      | .         |
+Perceptions.of.corruption       | .                 | 1.1175531         | .                | .       | .        | .                      | 0.2618378 |
+
+
+
+
+Generosity was not selected in any process, so we can confidently remove that. Perception of corruption was selected in the AIC best subsets and LASSO selection, but nothing else. If we stick with BIC, we should probably remove this one too.
+
+```{r, Create Model}
+happiness <- happiness |>
+  select(-Generosity, -Perceptions.of.corruption)
+
+fit.happiness <- lm(Score ~ ., happiness.original)
+happiness$Residuals <- fit.happiness$residuals
+happiness$'Fitted Values' <- fit.happiness$fitted.values
+
+summary(fit.happiness)
+```
+
+```{r, Linearity}
+# X and Y are Linear
+
+# Partial Regression Plots
+avPlots(fit.happiness)
+
+# Residual by Predictor Plots
+resid_vs_gdp <- ggplot(happiness, aes(x = GDP.per.capita, y = Residuals)) +
+  geom_point() +
+  theme_bw() +
+  theme(aspect.ratio = 1)
+
+resid_vs_social <- ggplot(happiness, aes(x = Social.support, y = Residuals)) +
+  geom_point() +
+  theme_bw() +
+  theme(aspect.ratio = 1)
+
+resid_vs_healthy <- ggplot(happiness, aes(x = Healthy.life.expectancy, y = Residuals)) +
+  geom_point() +
+  theme_bw() +
+  theme(aspect.ratio = 1)
+
+resid_vs_freedom <- ggplot(happiness, aes(x = Freedom.to.make.life.choices, y = Residuals)) +
+  geom_point() +
+  theme_bw() +
+  theme(aspect.ratio = 1)
+
+(resid_vs_gdp | resid_vs_social) / (resid_vs_healthy | resid_vs_freedom)
+```
+
+Linearity looks good.
+
+# Check Independence Here
+
+```{r, Normal Residuals}
+ggplot(happiness, aes(x = Score)) +
+  geom_histogram(fill = 'blue', alpha = 0.5, color = 'black') +
+  labs(
+    title = "Residuals Histogram",
+    y = "Count",
+    x = "Body Fat % (Brozek)"
+  ) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+ggplot(happiness, aes(sample = Residuals)) +
+  stat_qq() +
+  stat_qq_line() +
+  labs(
+    title = "Normal Q-Q Plot",
+    x = "Theoretical Quantile",
+    y = "Standardized Residuals"
+  ) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+shapiro.test(happiness$Residuals)
+```
+
+QQ plot is fine, but histogram doesn't look great. Shapiro says it's still 'ok' though. Maybe transform the data to get better normality.
+
+```{r, Equal Variance}
+autoplot(fit.happiness, which = 3, nrow = 1, ncol = 1) +
+  labs(
+    title = "Scale-Location",
+  ) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Looks good.
+
+```{r, Check for Influential Points}
+autoplot(fit.happiness, which = 4, ncol = 1, nrow = 1) +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Nothing above (or even close) to 0.5, so we're good.
+
+```{r, Multicollinearity, message=FALSE}
+vif(fit.happiness)
+mean(vif(fit.happiness))
+```
+
+GDP looks strongly correlated with a couple in the original scatter matrix, but no VIFs are above 10 and the mean is below 5, so we're good I guess?
+
+```{r}
+summary(fit.happiness)
+```
+
+Interpret coefficients:
+GDP: We expect an average increase in citizen happiness score for a country of ~0.8105 for every 1 unit (currency of the respective country?) increase in GDP.
+
+Social Support: We expect an average increase in citizen happiness score for a country of ~1.0166 for every 1 point increase in social support score.
+
+Healthy: We expect an average increase in citizen happiness score for a country of ~1.1414 for every 1 point increase in healthy life expectancy score.
+
+Freedom: We expect an average increase in citizen happiness score for a country of 1.8458 for every 1 point increase in freedom to make life choices score.
